@@ -1,0 +1,9 @@
+# Rust
+/target
+.rustup
+
+# macOS-specific files
+.DS_Store
+
+# rs-ts
+/bindings
