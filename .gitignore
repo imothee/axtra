@@ -7,3 +7,6 @@
 
 # rs-ts
 /bindings
+
+# Devbox
+.devbox
