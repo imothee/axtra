@@ -256,7 +256,7 @@ impl IntoResponse for AppError {
         }
 
         let user_message = match &self.kind {
-            ErrorKind::BadRequest { .. } => "The request could not be processed.",
+            ErrorKind::BadRequest { detail } => detail,
             ErrorKind::NotFound { .. } => "The requested resource was not found.",
             ErrorKind::Authorization { .. } => "You are not authorized to perform this action.",
             ErrorKind::Exception { .. } => "An internal server error occurred.",
