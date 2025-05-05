@@ -4,6 +4,7 @@ use axum::{
     Json,
     response::{IntoResponse, Response},
 };
+use inflector::string::pluralize::to_plural;
 use serde::Serialize;
 
 // Trait for getting the response key
@@ -49,7 +50,7 @@ where
 {
     fn into_response(self) -> Response {
         let mut map = HashMap::new();
-        map.insert(T::response_key().to_string() + "s", self.0);
+        map.insert(to_plural(T::response_key()), self.0);
 
         let json = Json(ApiListResponse { data: map });
         json.into_response()
