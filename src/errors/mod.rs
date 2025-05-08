@@ -232,7 +232,7 @@ impl IntoResponse for AppError {
         let format = self.format.clone();
 
         let log_message = self.log_message();
-        let source = self.source.as_ref().map(|e| e.to_string());
+        let source = self.source.as_ref().map(|e| format!("{:?}", e));
 
         match status {
             StatusCode::BAD_REQUEST | StatusCode::FORBIDDEN => {
