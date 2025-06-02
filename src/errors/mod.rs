@@ -1,204 +1,60 @@
-use std::error::Error as StdError;
-use std::path::Path;
-use std::{fmt, fs};
+//! Error types and helpers for the application.
+//!
+//! This module provides:
+//! - Validation error serialization
+//! - AppError enum for all error types
+//! - Error formatting helpers (JSON/HTML)
+//! - Logging and response conversion utilities
+//! - Macros for error location
 
-use anyhow::Error as AnyhowError;
-use api::{ErrorResponse, SerializableValidationErrors, ValidationFieldError};
-use axum::Json;
-use axum::extract::rejection::JsonRejection;
-use axum::response::{Html, IntoResponse};
-use enums::{ErrorFormat, ErrorKind};
+// --- Imports ---
+use axum::{
+    Json,
+    extract::rejection::JsonRejection,
+    response::{Html, IntoResponse, Response},
+};
 use http::StatusCode;
+use serde::Serialize;
+use std::{collections::HashMap, fs, path::Path};
+use thiserror::Error;
 use tracing::{error, info, warn};
+use ts_rs::TS;
 use validator::ValidationErrors;
 
-pub mod api;
-pub mod enums;
+// --- Macros ---
 
-#[derive(Debug)]
-pub struct AppError {
-    pub code: StatusCode,
-    pub format: ErrorFormat,
-    pub kind: ErrorKind,
-    pub source: Option<AnyhowError>,
+/// Macro to prepend the current module path and line to a message.
+/// Usage: `err_with_loc!("something went wrong: {}", detail)`
+#[macro_export]
+macro_rules! err_with_loc {
+    ($($arg:tt)*) => {
+        format!("[{}:{}] {}", module_path!(), line!(), format!($($arg)*))
+    };
 }
 
-/* Implement std::err */
-impl fmt::Display for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.code, self.log_message())
-    }
+// --- Validation Error Serialization ---
+
+/// Represents a single field validation error.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "errors.ts")]
+#[serde(rename_all = "camelCase")]
+pub struct ValidationFieldError {
+    pub field: String,
+    pub code: String,
+    pub message: String,
+    pub params: HashMap<String, String>,
 }
 
-impl StdError for AppError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        // If you have nested errors, you can return them here
-        // For now, returning None as there's no nested error
-        None
-    }
+/// Represents all validation errors in a serializable form.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "errors.ts")]
+pub struct SerializableValidationErrors {
+    pub errors: Vec<ValidationFieldError>,
 }
 
-impl AppError {
-    pub fn bad_request(detail: impl Into<String>, format: Option<ErrorFormat>) -> Self {
-        Self {
-            code: StatusCode::BAD_REQUEST,
-            format: format.unwrap_or(ErrorFormat::Html),
-            kind: ErrorKind::BadRequest {
-                detail: detail.into(),
-            },
-            source: None,
-        }
-    }
-
-    pub fn internal_server_error(detail: impl Into<String>, format: Option<ErrorFormat>) -> Self {
-        Self {
-            code: StatusCode::INTERNAL_SERVER_ERROR,
-            format: format.unwrap_or(ErrorFormat::Html),
-            kind: ErrorKind::Exception {
-                detail: detail.into(),
-            },
-            source: None,
-        }
-    }
-
-    pub fn not_found(resource: impl Into<String>, format: Option<ErrorFormat>) -> Self {
-        Self {
-            code: StatusCode::NOT_FOUND,
-            format: format.unwrap_or(ErrorFormat::Html),
-            kind: ErrorKind::NotFound {
-                resource: resource.into(),
-            },
-            source: None,
-        }
-    }
-
-    pub fn unauthenticated(format: Option<ErrorFormat>) -> Self {
-        Self {
-            code: StatusCode::UNAUTHORIZED,
-            format: format.unwrap_or(ErrorFormat::Html),
-            kind: ErrorKind::Authentication,
-            source: None,
-        }
-    }
-
-    pub fn unauthorized(
-        resource: impl Into<String>,
-        action: impl Into<String>,
-        format: Option<ErrorFormat>,
-    ) -> Self {
-        Self {
-            code: StatusCode::FORBIDDEN,
-            format: format.unwrap_or(ErrorFormat::Html),
-            kind: ErrorKind::Authorization {
-                resource: resource.into(),
-                action: action.into(),
-            },
-            source: None,
-        }
-    }
-
-    pub fn validation(errors: ValidationErrors, format: Option<ErrorFormat>) -> Self {
-        Self {
-            code: StatusCode::BAD_REQUEST,
-            format: format.unwrap_or(ErrorFormat::Html),
-            kind: ErrorKind::Validation { errors },
-            source: None,
-        }
-    }
-
-    pub fn with_context<E>(message: impl Into<String>, error: E) -> Self
-    where
-        E: Into<AnyhowError>,
-    {
-        Self {
-            code: StatusCode::INTERNAL_SERVER_ERROR,
-            format: ErrorFormat::Html,
-            kind: ErrorKind::Exception {
-                detail: message.into(),
-            },
-            source: Some(error.into()),
-        }
-    }
-}
-
-impl AppError {
-    pub fn json_bad_request(detail: impl Into<String>) -> Self {
-        Self::bad_request(detail, Some(ErrorFormat::Json))
-    }
-
-    pub fn json_not_found(resource: impl Into<String>) -> Self {
-        Self::not_found(resource, Some(ErrorFormat::Json))
-    }
-
-    pub fn json_unauthenticated() -> Self {
-        Self::unauthenticated(Some(ErrorFormat::Json))
-    }
-
-    pub fn json_unauthorized(resource: impl Into<String>, action: impl Into<String>) -> Self {
-        Self::unauthorized(resource, action, Some(ErrorFormat::Json))
-    }
-
-    pub fn json_validation(errors: ValidationErrors) -> Self {
-        Self::validation(errors, Some(ErrorFormat::Json))
-    }
-}
-
-impl AppError {
-    // Helper function to generate the log message
-    fn log_message(&self) -> String {
-        match &self.kind {
-            ErrorKind::BadRequest { detail } => format!("Bad Request: {}", detail),
-            ErrorKind::NotFound { resource } => format!("Not Found: Resource '{}'", resource),
-            ErrorKind::Authorization { resource, action } => {
-                format!("Unauthorized: '{}' on '{}'", action, resource)
-            }
-            ErrorKind::Exception { detail } => format!("Exception: {}", detail),
-            ErrorKind::Validation { .. } => "Validation error occurred".to_string(),
-            ErrorKind::Authentication => "Authentication failed".to_string(),
-        }
-    }
-}
-
-/*
-* Implicit conversion using from should be limited to avoid heavy dependencies in this library
-* We should handle validation errors since they will happen in every post/patch request
-* The other option to get explicitly named errors is to use context to bubble a generic exception
-* The rest need to be returned explicitly
-*/
-
-// Allows us to convert from any anyhow::Error with context directly
-impl From<AnyhowError> for AppError {
-    fn from(err: AnyhowError) -> Self {
-        AppError::with_context(err.to_string(), err)
-    }
-}
-
-// Allows us to convert from validation errors directly
-impl From<ValidationErrors> for AppError {
-    fn from(err: ValidationErrors) -> Self {
-        AppError::validation(err, Some(ErrorFormat::Json))
-    }
-}
-
-// Allows us to convert from sqlx errors directly
-impl From<sqlx::Error> for AppError {
-    fn from(err: sqlx::Error) -> Self {
-        AppError::with_context("Database error occurred", err)
-    }
-}
-
-impl From<JsonRejection> for AppError {
-    fn from(err: JsonRejection) -> Self {
-        AppError::json_bad_request(format!("JSON payload error: {:#}", err))
-    }
-}
-
-// Allows us to convert from validation errors directly
-// This is used to serialize the validation errors into a format that can be returned in the response
 impl From<ValidationErrors> for SerializableValidationErrors {
     fn from(errors: ValidationErrors) -> Self {
         let mut field_errors = Vec::new();
-
         for (field, error_map) in errors.field_errors() {
             for error in error_map {
                 let params = error
@@ -206,7 +62,6 @@ impl From<ValidationErrors> for SerializableValidationErrors {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect();
-
                 field_errors.push(ValidationFieldError {
                     field: field.to_string(),
                     code: error.code.to_string(),
@@ -219,20 +74,487 @@ impl From<ValidationErrors> for SerializableValidationErrors {
                 });
             }
         }
-
         SerializableValidationErrors {
             errors: field_errors,
         }
     }
 }
 
+// --- Error Format Enum ---
+
+/// Supported error output formats.
+#[derive(Clone, Debug, Serialize)]
+pub enum ErrorFormat {
+    Html,
+    Json,
+}
+
+// --- AppError Enum ---
+
+/// Main application error type, covering all error cases.
+#[derive(Debug, Error)]
+pub enum AppError {
+    #[error("Bad Request: {detail}")]
+    BadRequest {
+        detail: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        format: Option<ErrorFormat>,
+    },
+    #[error("Not Found: {resource}")]
+    NotFound {
+        resource: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        format: Option<ErrorFormat>,
+    },
+    #[error("Unauthorized: {resource} {action}")]
+    Authorization {
+        resource: String,
+        action: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        format: Option<ErrorFormat>,
+    },
+    #[error("Authentication required")]
+    Authentication {
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        format: Option<ErrorFormat>,
+    },
+    #[error("Validation error")]
+    Validation {
+        errors: ValidationErrors,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        format: Option<ErrorFormat>,
+    },
+    #[error("Database error: {message}")]
+    Database {
+        message: String,
+        #[source]
+        source: Box<sqlx::Error>,
+        format: Option<ErrorFormat>,
+    },
+    #[error("Exception: {detail}")]
+    Exception {
+        detail: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        format: Option<ErrorFormat>,
+    },
+}
+
+// --- Error Response Struct ---
+
+/// Structure for serializing error responses to clients.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "errors.ts")]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorResponse {
+    pub status: String,
+    pub message: String,
+    pub error: String,
+    pub code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub validation_errors: Option<SerializableValidationErrors>,
+}
+
+// --- AppError Constructors ---
+
+impl AppError {
+    /// Create a BadRequest error.
+    pub fn bad_request(
+        detail: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        Self::BadRequest {
+            detail: detail.into(),
+            source,
+            format: None,
+        }
+    }
+
+    /// Create a Database error.
+    pub fn database(message: impl Into<String>, source: sqlx::Error) -> Self {
+        Self::Database {
+            message: message.into(),
+            source: Box::new(source),
+            format: None,
+        }
+    }
+
+    /// Create an Exception error.
+    pub fn exception(
+        detail: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        Self::Exception {
+            detail: detail.into(),
+            source,
+            format: None,
+        }
+    }
+
+    /// Create a NotFound error.
+    pub fn not_found(resource: impl Into<String>) -> Self {
+        Self::NotFound {
+            resource: resource.into(),
+            source: None,
+            format: None,
+        }
+    }
+
+    /// Create an Unauthenticated error.
+    pub fn unauthenticated() -> Self {
+        Self::Authentication {
+            source: None,
+            format: None,
+        }
+    }
+
+    /// Create an Unauthorized error.
+    pub fn unauthorized(resource: impl Into<String>, action: impl Into<String>) -> Self {
+        Self::Authorization {
+            resource: resource.into(),
+            action: action.into(),
+            source: None,
+            format: None,
+        }
+    }
+
+    /// Create a Validation error.
+    pub fn validation(errors: ValidationErrors) -> Self {
+        Self::Validation {
+            errors,
+            source: None,
+            format: None,
+        }
+    }
+}
+
+// --- Format Helpers (JSON/HTML) ---
+
+impl AppError {
+    // --- JSON helpers ---
+
+    /// Create a JSON BadRequest error.
+    pub fn json_bad_request(
+        detail: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        AppError::BadRequest {
+            detail: detail.into(),
+            source,
+            format: Some(ErrorFormat::Json),
+        }
+    }
+
+    /// Create a JSON Database error.
+    pub fn json_database(message: impl Into<String>, source: sqlx::Error) -> Self {
+        AppError::Database {
+            message: message.into(),
+            source: Box::new(source),
+            format: Some(ErrorFormat::Json),
+        }
+    }
+
+    /// Create a JSON Exception error.
+    pub fn json_exception(
+        detail: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        AppError::Exception {
+            detail: detail.into(),
+            source,
+            format: Some(ErrorFormat::Json),
+        }
+    }
+
+    /// Create a JSON NotFound error.
+    pub fn json_not_found(resource: impl Into<String>) -> Self {
+        AppError::NotFound {
+            resource: resource.into(),
+            source: None,
+            format: Some(ErrorFormat::Json),
+        }
+    }
+
+    /// Create a JSON Unauthenticated error.
+    pub fn json_unauthenticated() -> Self {
+        AppError::Authentication {
+            source: None,
+            format: Some(ErrorFormat::Json),
+        }
+    }
+
+    /// Create a JSON Unauthorized error.
+    pub fn json_unauthorized(resource: impl Into<String>, action: impl Into<String>) -> Self {
+        AppError::Authorization {
+            resource: resource.into(),
+            action: action.into(),
+            source: None,
+            format: Some(ErrorFormat::Json),
+        }
+    }
+
+    /// Create a JSON Validation error.
+    pub fn json_validation(errors: ValidationErrors) -> Self {
+        AppError::Validation {
+            errors,
+            source: None,
+            format: Some(ErrorFormat::Json),
+        }
+    }
+
+    // --- HTML helpers ---
+
+    /// Create an HTML BadRequest error.
+    pub fn html_bad_request(
+        detail: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        AppError::BadRequest {
+            detail: detail.into(),
+            source,
+            format: Some(ErrorFormat::Html),
+        }
+    }
+
+    /// Create an HTML Database error.
+    pub fn html_database(message: impl Into<String>, source: sqlx::Error) -> Self {
+        AppError::Database {
+            message: message.into(),
+            source: Box::new(source),
+            format: Some(ErrorFormat::Html),
+        }
+    }
+
+    /// Create an HTML Exception error.
+    pub fn html_exception(
+        detail: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        AppError::Exception {
+            detail: detail.into(),
+            source,
+            format: Some(ErrorFormat::Html),
+        }
+    }
+
+    /// Create an HTML NotFound error.
+    pub fn html_not_found(resource: impl Into<String>) -> Self {
+        AppError::NotFound {
+            resource: resource.into(),
+            source: None,
+            format: Some(ErrorFormat::Html),
+        }
+    }
+
+    /// Create an HTML Unauthenticated error.
+    pub fn html_unauthenticated() -> Self {
+        AppError::Authentication {
+            source: None,
+            format: Some(ErrorFormat::Html),
+        }
+    }
+
+    /// Create an HTML Unauthorized error.
+    pub fn html_unauthorized(resource: impl Into<String>, action: impl Into<String>) -> Self {
+        AppError::Authorization {
+            resource: resource.into(),
+            action: action.into(),
+            source: None,
+            format: Some(ErrorFormat::Html),
+        }
+    }
+
+    /// Create an HTML Validation error.
+    pub fn html_validation(errors: ValidationErrors) -> Self {
+        AppError::Validation {
+            errors,
+            source: None,
+            format: Some(ErrorFormat::Html),
+        }
+    }
+
+    /// Convert any AppError into a JSON-formatted error (drops source if not clonable).
+    pub fn as_json(self) -> Self {
+        match self {
+            AppError::BadRequest { detail, .. } => AppError::BadRequest {
+                detail,
+                source: None,
+                format: Some(ErrorFormat::Json),
+            },
+            AppError::NotFound { resource, .. } => AppError::NotFound {
+                resource,
+                source: None,
+                format: Some(ErrorFormat::Json),
+            },
+            AppError::Authorization {
+                resource, action, ..
+            } => AppError::Authorization {
+                resource,
+                action,
+                source: None,
+                format: Some(ErrorFormat::Json),
+            },
+            AppError::Authentication { .. } => AppError::Authentication {
+                source: None,
+                format: Some(ErrorFormat::Json),
+            },
+            AppError::Validation { errors, .. } => AppError::Validation {
+                errors,
+                source: None,
+                format: Some(ErrorFormat::Json),
+            },
+            AppError::Database { message, .. } => AppError::Database {
+                message,
+                source: Box::new(sqlx::Error::Protocol("source omitted".into())),
+                format: Some(ErrorFormat::Json),
+            },
+            AppError::Exception { detail, .. } => AppError::Exception {
+                detail,
+                source: None,
+                format: Some(ErrorFormat::Json),
+            },
+        }
+    }
+}
+
+// --- AppError Utility Methods ---
+
+impl AppError {
+    /// Returns a short code for the error type.
+    fn code(&self) -> &'static str {
+        match self {
+            AppError::Authentication { .. } => "authentication",
+            AppError::Authorization { .. } => "authorization",
+            AppError::BadRequest { .. } => "bad_request",
+            AppError::Database { .. } => "database",
+            AppError::Exception { .. } => "exception",
+            AppError::NotFound { .. } => "not_found",
+            AppError::Validation { .. } => "validation",
+        }
+    }
+
+    /// Generates a detailed log message, recursively including sources.
+    fn log_message(&self) -> String {
+        fn proxy_source(
+            source: &Option<Box<dyn std::error::Error + Send + Sync>>,
+        ) -> Option<String> {
+            source.as_ref().and_then(|src| {
+                // Try to downcast to AppError for recursive log_message
+                src.downcast_ref::<AppError>()
+                    .map(|app_err| app_err.log_message())
+                    .or_else(|| Some(format!("{:?}", src)))
+            })
+        }
+
+        match self {
+            AppError::Authentication { source, .. } => match proxy_source(source) {
+                Some(msg) => format!("Authentication failed | caused by: {}", msg),
+                None => "Authentication failed".to_string(),
+            },
+            AppError::Authorization {
+                resource,
+                action,
+                source,
+                ..
+            } => match proxy_source(source) {
+                Some(msg) => format!(
+                    "Unauthorized: '{}' on '{}' | caused by: {}",
+                    action, resource, msg
+                ),
+                None => format!("Unauthorized: '{}' on '{}'", action, resource),
+            },
+            AppError::BadRequest { detail, source, .. } => match proxy_source(source) {
+                Some(msg) => format!("Bad Request: {} | caused by: {}", detail, msg),
+                None => format!("Bad Request: {}", detail),
+            },
+            AppError::Database {
+                message, source, ..
+            } => {
+                format!("Database error: {} | sqlx: {:?}", message, source)
+            }
+            AppError::Exception { detail, source, .. } => match proxy_source(source) {
+                Some(msg) => format!("Exception: {} | caused by: {}", detail, msg),
+                None => format!("Exception: {}", detail),
+            },
+            AppError::NotFound {
+                resource, source, ..
+            } => match proxy_source(source) {
+                Some(msg) => format!("Not Found: Resource '{}' | caused by: {}", resource, msg),
+                None => format!("Not Found: Resource '{}'", resource),
+            },
+            AppError::Validation { source, .. } => match proxy_source(source) {
+                Some(msg) => format!("Validation error occurred | caused by: {}", msg),
+                None => "Validation error occurred".to_string(),
+            },
+        }
+    }
+
+    /// Returns the error format (if set).
+    fn format(&self) -> Option<ErrorFormat> {
+        match self {
+            AppError::Authentication { format, .. }
+            | AppError::Authorization { format, .. }
+            | AppError::BadRequest { format, .. }
+            | AppError::Database { format, .. }
+            | AppError::Exception { format, .. }
+            | AppError::NotFound { format, .. }
+            | AppError::Validation { format, .. } => format.clone(),
+        }
+    }
+
+    /// Returns the HTTP status code for the error.
+    fn status_code(&self) -> StatusCode {
+        match self {
+            AppError::Authentication { .. } => StatusCode::UNAUTHORIZED,
+            AppError::Authorization { .. } => StatusCode::FORBIDDEN,
+            AppError::BadRequest { .. } | AppError::Validation { .. } => StatusCode::BAD_REQUEST,
+            AppError::Database { .. } | AppError::Exception { .. } => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            AppError::NotFound { .. } => StatusCode::NOT_FOUND,
+        }
+    }
+}
+
+// --- Error Conversion Implementations ---
+
+/// Converts Axum JSON rejections into AppError.
+impl From<JsonRejection> for AppError {
+    fn from(err: JsonRejection) -> Self {
+        AppError::json_bad_request("Invalid JSON request", Some(Box::new(err)))
+    }
+}
+
+/// Converts validator errors into AppError.
+impl From<ValidationErrors> for AppError {
+    fn from(err: ValidationErrors) -> Self {
+        AppError::json_validation(err)
+    }
+}
+
+// --- IntoResponse Implementation ---
+
 impl IntoResponse for AppError {
-    fn into_response(self) -> axum::response::Response {
-        let status = self.code;
-        let format = self.format.clone();
+    fn into_response(self) -> Response {
+        let status = self.status_code();
+        let format = self.format().unwrap_or(ErrorFormat::Html);
 
         let log_message = self.log_message();
-        let source = self.source.as_ref().map(|e| format!("{:?}", e));
+        let source = match &self {
+            AppError::Authentication { source, .. }
+            | AppError::Authorization { source, .. }
+            | AppError::BadRequest { source, .. }
+            | AppError::Exception { source, .. }
+            | AppError::NotFound { source, .. }
+            | AppError::Validation { source, .. } => source.as_ref().map(|e| format!("{:?}", e)),
+            AppError::Database { source, .. } => Some(format!("{:?}", source)),
+        };
 
         match status {
             StatusCode::BAD_REQUEST | StatusCode::FORBIDDEN => {
@@ -255,13 +577,16 @@ impl IntoResponse for AppError {
             }
         }
 
-        let user_message = match &self.kind {
-            ErrorKind::BadRequest { detail } => detail,
-            ErrorKind::NotFound { .. } => "The requested resource was not found.",
-            ErrorKind::Authorization { .. } => "You are not authorized to perform this action.",
-            ErrorKind::Exception { .. } => "An internal server error occurred.",
-            ErrorKind::Validation { .. } => "There was a validation error with your request.",
-            ErrorKind::Authentication => "Authentication is required to access this resource.",
+        let user_message = match &self {
+            AppError::Authentication { .. } => {
+                "Authentication is required to access this resource."
+            }
+            AppError::Authorization { .. } => "You are not authorized to perform this action.",
+            AppError::BadRequest { detail, .. } => detail,
+            AppError::Database { .. } => "A database error occurred.",
+            AppError::Exception { .. } => "An internal server error occurred.",
+            AppError::NotFound { .. } => "The requested resource was not found.",
+            AppError::Validation { .. } => "There was a validation error with your request.",
         };
 
         match format {
@@ -269,9 +594,10 @@ impl IntoResponse for AppError {
                 let error_response = ErrorResponse {
                     status: status.canonical_reason().unwrap_or("Unknown").to_string(),
                     message: user_message.to_string(),
-                    kind: self.kind.clone(), // Serialized as a string (e.g., "Validation")
-                    validation_errors: match self.kind {
-                        ErrorKind::Validation { errors } => Some(errors.into()),
+                    error: self.to_string(),
+                    code: self.code().to_string(),
+                    validation_errors: match &self {
+                        AppError::Validation { errors, .. } => Some(errors.clone().into()),
                         _ => None,
                     },
                 };
@@ -284,7 +610,6 @@ impl IntoResponse for AppError {
                 };
 
                 let html_content = fs::read_to_string(Path::new(file_path)).unwrap_or_else(|_| {
-                    // Fallback if the file cannot be read
                     format!(
                         r#"
                         <!DOCTYPE html>

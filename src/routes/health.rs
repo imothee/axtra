@@ -13,9 +13,7 @@ pub struct HealthCheck {
     timestamp: String,
 }
 
-pub async fn check_health(
-    State(pool): State<PgPool>,
-) -> anyhow::Result<Json<HealthCheck>, StatusCode> {
+pub async fn check_health(State(pool): State<PgPool>) -> Result<Json<HealthCheck>, StatusCode> {
     // Try to execute a simple query with timeout
     let db_connected = match tokio::time::timeout(
         Duration::from_secs(5),
