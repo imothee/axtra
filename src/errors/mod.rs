@@ -89,6 +89,22 @@ pub enum ErrorFormat {
     Json,
 }
 
+// --- Error Code Enum ---
+
+/// Enum of all possible error codes.
+#[derive(Debug, Serialize, TS, Clone, Copy)]
+#[ts(export, export_to = "errors.ts")]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorCode {
+    Authentication,
+    Authorization,
+    BadRequest,
+    Database,
+    Exception,
+    NotFound,
+    Validation,
+}
+
 // --- AppError Enum ---
 
 /// Main application error type, covering all error cases.
@@ -155,7 +171,7 @@ pub struct ErrorResponse {
     pub status: String,
     pub message: String,
     pub error: String,
-    pub code: String,
+    pub code: ErrorCode,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub validation_errors: Option<SerializableValidationErrors>,
@@ -426,16 +442,16 @@ impl AppError {
 // --- AppError Utility Methods ---
 
 impl AppError {
-    /// Returns a short code for the error type.
-    fn code(&self) -> &'static str {
+    /// Returns the error code as an enum.
+    pub fn code(&self) -> ErrorCode {
         match self {
-            AppError::Authentication { .. } => "authentication",
-            AppError::Authorization { .. } => "authorization",
-            AppError::BadRequest { .. } => "bad_request",
-            AppError::Database { .. } => "database",
-            AppError::Exception { .. } => "exception",
-            AppError::NotFound { .. } => "not_found",
-            AppError::Validation { .. } => "validation",
+            AppError::Authentication { .. } => ErrorCode::Authentication,
+            AppError::Authorization { .. } => ErrorCode::Authorization,
+            AppError::BadRequest { .. } => ErrorCode::BadRequest,
+            AppError::Database { .. } => ErrorCode::Database,
+            AppError::Exception { .. } => ErrorCode::Exception,
+            AppError::NotFound { .. } => ErrorCode::NotFound,
+            AppError::Validation { .. } => ErrorCode::Validation,
         }
     }
 
@@ -520,6 +536,21 @@ impl AppError {
             AppError::NotFound { .. } => StatusCode::NOT_FOUND,
         }
     }
+
+    // Returns a user-friendly message for the error.
+    fn user_message(&self) -> &str {
+        match self {
+            AppError::Authentication { .. } => {
+                "Authentication is required to access this resource."
+            }
+            AppError::Authorization { .. } => "You are not authorized to perform this action.",
+            AppError::BadRequest { detail, .. } => detail,
+            AppError::Database { .. } => "A database error occurred.",
+            AppError::Exception { .. } => "An internal server error occurred.",
+            AppError::NotFound { .. } => "The requested resource was not found.",
+            AppError::Validation { .. } => "There was a validation error with your request.",
+        }
+    }
 }
 
 // --- Error Conversion Implementations ---
@@ -577,25 +608,13 @@ impl IntoResponse for AppError {
             }
         }
 
-        let user_message = match &self {
-            AppError::Authentication { .. } => {
-                "Authentication is required to access this resource."
-            }
-            AppError::Authorization { .. } => "You are not authorized to perform this action.",
-            AppError::BadRequest { detail, .. } => detail,
-            AppError::Database { .. } => "A database error occurred.",
-            AppError::Exception { .. } => "An internal server error occurred.",
-            AppError::NotFound { .. } => "The requested resource was not found.",
-            AppError::Validation { .. } => "There was a validation error with your request.",
-        };
-
         match format {
             ErrorFormat::Json => {
                 let error_response = ErrorResponse {
                     status: status.canonical_reason().unwrap_or("Unknown").to_string(),
-                    message: user_message.to_string(),
+                    message: self.user_message().to_string(),
                     error: self.to_string(),
-                    code: self.code().to_string(),
+                    code: self.code(),
                     validation_errors: match &self {
                         AppError::Validation { errors, .. } => Some(errors.clone().into()),
                         _ => None,
@@ -624,7 +643,7 @@ impl IntoResponse for AppError {
                         </body>
                         </html>
                         "#,
-                        user_message
+                        self.user_message()
                     )
                 });
 
