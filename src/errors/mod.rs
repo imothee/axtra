@@ -608,6 +608,17 @@ impl IntoResponse for AppError {
             }
         }
 
+        // --- Sentry integration ---
+        #[cfg(feature = "sentry")]
+        {
+            match &self {
+                AppError::Database { .. } | AppError::Exception { .. } => {
+                    sentry::capture_error(&self);
+                }
+                _ => {}
+            }
+        }
+
         match format {
             ErrorFormat::Json => {
                 let error_response = ErrorResponse {
