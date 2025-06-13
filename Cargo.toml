@@ -23,7 +23,20 @@ ts-rs = "11.0.0"
 validator = "0.20.0"
 
 [features]
+notifier = ["dep:reqwest", "dep:serde_json"]
+notify-error-slack = ["notifier"]
+notify-error-discord = ["notifier"]
 sentry = ["dep:sentry"]
+
+[dependencies.reqwest]
+version = "0.12"
+optional = true
+default-features = false
+features = ["json", "rustls-tls"]
+
+[dependencies.serde_json]
+version = "1.0.117"
+optional = true
 
 [dependencies.sentry]
 version = "0.39.0"

@@ -21,6 +21,12 @@ use tracing::{error, info, warn};
 use ts_rs::TS;
 use validator::ValidationErrors;
 
+#[cfg(any(feature = "notify-error-slack", feature = "notify-error-discord"))]
+use crate::notifier::{Notifier, NotifierKind};
+
+#[cfg(any(feature = "notify-error-slack", feature = "notify-error-discord"))]
+use std::{env, sync::OnceLock};
+
 // --- Macros ---
 
 /// Macro to prepend the current module path and line to a message.
@@ -30,6 +36,35 @@ macro_rules! err_with_loc {
     ($($arg:tt)*) => {
         format!("[{}:{}] {}", module_path!(), line!(), format!($($arg)*))
     };
+}
+
+// Notification Clients
+#[cfg(feature = "notify-error-slack")]
+static SLACK_NOTIFIER: OnceLock<Option<Notifier>> = OnceLock::new();
+
+#[cfg(feature = "notify-error-slack")]
+fn slack_notifier() -> Option<&'static Notifier> {
+    SLACK_NOTIFIER
+        .get_or_init(|| {
+            std::env::var("SLACK_ERROR_WEBHOOK_URL")
+                .ok()
+                .map(|url| Notifier::new(url, NotifierKind::Slack))
+        })
+        .as_ref()
+}
+
+#[cfg(feature = "notify-error-discord")]
+static DISCORD_NOTIFIER: OnceLock<Option<Notifier>> = OnceLock::new();
+
+#[cfg(feature = "notify-error-discord")]
+fn discord_notifier() -> Option<&'static Notifier> {
+    DISCORD_NOTIFIER
+        .get_or_init(|| {
+            std::env::var("DISCORD_ERROR_WEBHOOK_URL")
+                .ok()
+                .map(|url| Notifier::new(url, NotifierKind::Discord))
+        })
+        .as_ref()
 }
 
 // --- Validation Error Serialization ---
@@ -616,6 +651,55 @@ impl IntoResponse for AppError {
                     sentry::capture_error(&self);
                 }
                 _ => {}
+            }
+        }
+
+        #[cfg(feature = "notify-error-slack")]
+        {
+            if let Some(notifier) = slack_notifier() {
+                let blocks = serde_json::json!([
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": format!("*Error Occurred*\n*Type:* `{}`\n*Message:* {}", self.code(), self.user_message())
+                        }
+                    },
+                    {
+                        "type": "context",
+                        "elements": [
+                            {
+                                "type": "mrkdwn",
+                                "text": format!("`{}`", self.log_message())
+                            }
+                        ]
+                    }
+                ]);
+                let _ = tokio::spawn(async move {
+                    let _ = notifier.notify_slack("Error occurred", Some(blocks)).await;
+                });
+            }
+        }
+
+        #[cfg(feature = "notify-error-discord")]
+        {
+            if let Some(notifier) = discord_notifier() {
+                let embeds = serde_json::json!([
+                    {
+                        "title": "Error Occurred",
+                        "color": 16711680,
+                        "fields": [
+                            { "name": "Type", "value": format!("`{:?}`", self.code()), "inline": true },
+                            { "name": "Message", "value": self.user_message(), "inline": false }
+                        ],
+                        "description": self.log_message()
+                    }
+                ]);
+                let _ = tokio::spawn(async move {
+                    let _ = notifier
+                        .notify_discord("Error occurred", Some(embeds))
+                        .await;
+                });
             }
         }
 
