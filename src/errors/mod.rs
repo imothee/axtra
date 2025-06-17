@@ -25,7 +25,7 @@ use validator::ValidationErrors;
 use crate::notifier::{Notifier, NotifierKind};
 
 #[cfg(any(feature = "notify-error-slack", feature = "notify-error-discord"))]
-use std::{env, sync::OnceLock};
+use std::sync::OnceLock;
 
 // --- Macros ---
 
@@ -657,12 +657,18 @@ impl IntoResponse for AppError {
         #[cfg(feature = "notify-error-slack")]
         {
             if let Some(notifier) = slack_notifier() {
+                let app_name = std::env::var("APP_NAME").unwrap_or("Rust".to_string());
+
                 let blocks = serde_json::json!([
                     {
                         "type": "section",
                         "text": {
                             "type": "mrkdwn",
-                            "text": format!("*Error Occurred*\n*Type:* `{}`\n*Message:* {}", self.code(), self.user_message())
+                            "text": format!(
+                                "*{}*\n{}\n@oncall",
+                                app_name,
+                                self.user_message()
+                            )
                         }
                     },
                     {
@@ -670,7 +676,7 @@ impl IntoResponse for AppError {
                         "elements": [
                             {
                                 "type": "mrkdwn",
-                                "text": format!("`{}`", self.log_message())
+                                "text": format!("```{}```", self.log_message())
                             }
                         ]
                     }
@@ -684,15 +690,20 @@ impl IntoResponse for AppError {
         #[cfg(feature = "notify-error-discord")]
         {
             if let Some(notifier) = discord_notifier() {
+                let app_name = std::env::var("APP_NAME").unwrap_or_else(|_| "Rust".to_string());
+
                 let embeds = serde_json::json!([
                     {
-                        "title": "Error Occurred",
+                        "title": app_name,
                         "color": 16711680,
+                        "description": format!("{}\n@oncall", self.user_message()),
                         "fields": [
-                            { "name": "Type", "value": format!("`{:?}`", self.code()), "inline": true },
-                            { "name": "Message", "value": self.user_message(), "inline": false }
-                        ],
-                        "description": self.log_message()
+                            {
+                                "name": "Details",
+                                "value": format!("```{}```", self.log_message()),
+                                "inline": false
+                            }
+                        ]
                     }
                 ]);
                 let _ = tokio::spawn(async move {
