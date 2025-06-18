@@ -656,61 +656,80 @@ impl IntoResponse for AppError {
 
         #[cfg(feature = "notify-error-slack")]
         {
-            if let Some(notifier) = slack_notifier() {
-                let app_name = std::env::var("APP_NAME").unwrap_or("Rust".to_string());
+            match &self {
+                AppError::Database { .. } | AppError::Exception { .. } => {
+                    if let Some(notifier) = slack_notifier() {
+                        let app_name = std::env::var("APP_NAME").unwrap_or("Rust".to_string());
 
-                let blocks = serde_json::json!([
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": format!(
-                                "*{}*\n{}\n@oncall",
-                                app_name,
-                                self.user_message()
-                            )
-                        }
-                    },
-                    {
-                        "type": "context",
-                        "elements": [
+                        let blocks = serde_json::json!(
+                        [
                             {
-                                "type": "mrkdwn",
-                                "text": format!("```{}```", self.log_message())
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": format!(":red_circle: *Exception* — `{}`", app_name)
+                                }
+                            },
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": format!("```{}```", self.log_message())
+                                }
+                            },
+                            {
+                                "type": "context",
+                                "elements": [
+                                    {
+                                        "type": "mrkdwn",
+                                        "text": "@oncall"
+                                    }
+                                ]
                             }
-                        ]
+                        ]);
+                        let _ = tokio::spawn(async move {
+                            let _ = notifier.notify_slack("Error occurred", Some(blocks)).await;
+                        });
                     }
-                ]);
-                let _ = tokio::spawn(async move {
-                    let _ = notifier.notify_slack("Error occurred", Some(blocks)).await;
-                });
+                }
+                _ => {}
             }
         }
 
         #[cfg(feature = "notify-error-discord")]
         {
-            if let Some(notifier) = discord_notifier() {
-                let app_name = std::env::var("APP_NAME").unwrap_or_else(|_| "Rust".to_string());
+            match &self {
+                AppError::Database { .. } | AppError::Exception { .. } => {
+                    if let Some(notifier) = discord_notifier() {
+                        let app_name =
+                            std::env::var("APP_NAME").unwrap_or_else(|_| "Rust".to_string());
 
-                let embeds = serde_json::json!([
-                    {
-                        "title": app_name,
-                        "color": 16711680,
-                        "description": format!("{}\n@oncall", self.user_message()),
-                        "fields": [
+                        let embeds = serde_json::json!([
                             {
-                                "name": "Details",
-                                "value": format!("```{}```", self.log_message()),
-                                "inline": false
+                                "title": format!(":red_circle: Exception — {}", app_name),
+                                "color": 16711680, // Red
+                                "fields": [
+                                    {
+                                        "name": "Details",
+                                        "value": format!("```{}```", self.log_message()),
+                                        "inline": false
+                                    },
+                                    {
+                                        "name": "\u{200B}",
+                                        "value": "@oncall",
+                                        "inline": false
+                                    }
+                                ]
                             }
-                        ]
+                        ]);
+                        let _ = tokio::spawn(async move {
+                            let _ = notifier
+                                .notify_discord("Error occurred", Some(embeds))
+                                .await;
+                        });
                     }
-                ]);
-                let _ = tokio::spawn(async move {
-                    let _ = notifier
-                        .notify_discord("Error occurred", Some(embeds))
-                        .await;
-                });
+                }
+                _ => {}
             }
         }
 
