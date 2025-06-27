@@ -8,7 +8,7 @@ use inflector::string::pluralize::to_plural;
 use serde::Serialize;
 
 // Trait for getting the response key
-pub trait ResponseType {
+pub trait ResponseKey {
     fn response_key() -> &'static str;
 }
 
@@ -32,7 +32,7 @@ pub struct WrappedJson<T>(pub T);
 // Implementation to convert our types into responses
 impl<T> IntoResponse for WrappedJson<T>
 where
-    T: Serialize + ResponseType,
+    T: Serialize + ResponseKey,
 {
     fn into_response(self) -> Response {
         let mut map = HashMap::new();
@@ -46,7 +46,7 @@ where
 // Implementation for Vec responses
 impl<T> IntoResponse for WrappedJson<Vec<T>>
 where
-    T: Serialize + ResponseType,
+    T: Serialize + ResponseKey,
 {
     fn into_response(self) -> Response {
         let mut map = HashMap::new();

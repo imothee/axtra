@@ -21,6 +21,7 @@ tower-http = { version = "0.6.2", features = [
 tracing = "0.1.41"
 ts-rs = "11.0.0"
 validator = "0.20.0"
+xyz_macros = { path = "./xyz_macros" }
 
 [features]
 notifier = ["dep:reqwest", "dep:serde_json"]
