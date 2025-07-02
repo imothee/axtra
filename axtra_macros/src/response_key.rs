@@ -48,7 +48,7 @@ pub fn response_key_derive(input: TokenStream) -> TokenStream {
         .unwrap_or(default_key);
 
     let expanded = quote! {
-        impl ::xyz::response::ResponseKey for #struct_name {
+        impl ::axtra::response::ResponseKey for #struct_name {
             fn response_key() -> &'static str {
                 #response_key
             }

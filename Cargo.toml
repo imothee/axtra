@@ -1,6 +1,6 @@
 [package]
-name = "xyz"
-version = "0.1.0"
+name = "axtra"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
@@ -21,7 +21,7 @@ tower-http = { version = "0.6.2", features = [
 tracing = "0.1.41"
 ts-rs = "11.0.0"
 validator = "0.20.0"
-xyz_macros = { path = "./xyz_macros" }
+axtra_macros = { path = "./axtra_macros" }
 
 [features]
 notifier = ["dep:reqwest", "dep:serde_json"]

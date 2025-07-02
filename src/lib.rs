@@ -1,4 +1,4 @@
-pub use xyz_macros::*;
+pub use axtra_macros::*;
 
 pub mod errors;
 #[cfg(feature = "notifier")]

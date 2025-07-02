@@ -12,9 +12,6 @@
 			"cargo fetch"
 		],
 		"scripts": {
-			"test": "cargo test -- --show-output",
-			"start": "cargo run",
-			"build-docs": "cargo doc"
 		}
 	}
 }

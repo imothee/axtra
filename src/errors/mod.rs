@@ -22,7 +22,7 @@ use ts_rs::TS;
 use validator::ValidationErrors;
 
 #[cfg(any(feature = "notify-error-slack", feature = "notify-error-discord"))]
-use crate::notifier::{Notifier, NotifierKind};
+use crate::notifier::Notifier;
 
 #[cfg(any(feature = "notify-error-slack", feature = "notify-error-discord"))]
 use std::sync::OnceLock;
@@ -48,7 +48,7 @@ fn slack_notifier() -> Option<&'static Notifier> {
         .get_or_init(|| {
             std::env::var("SLACK_ERROR_WEBHOOK_URL")
                 .ok()
-                .map(|url| Notifier::new(url, NotifierKind::Slack))
+                .map(|url| Notifier::with_slack(url))
         })
         .as_ref()
 }
@@ -62,7 +62,7 @@ fn discord_notifier() -> Option<&'static Notifier> {
         .get_or_init(|| {
             std::env::var("DISCORD_ERROR_WEBHOOK_URL")
                 .ok()
-                .map(|url| Notifier::new(url, NotifierKind::Discord))
+                .map(|url| Notifier::with_discord(url))
         })
         .as_ref()
 }
@@ -660,7 +660,6 @@ impl IntoResponse for AppError {
                 AppError::Database { .. } | AppError::Exception { .. } => {
                     if let Some(notifier) = slack_notifier() {
                         let app_name = std::env::var("APP_NAME").unwrap_or("Rust".to_string());
-
                         let blocks = serde_json::json!(
                         [
                             {
@@ -688,7 +687,7 @@ impl IntoResponse for AppError {
                             }
                         ]);
                         let _ = tokio::spawn(async move {
-                            let _ = notifier.notify_slack("Error occurred", Some(blocks)).await;
+                            let _ = notifier.notify_slack_rich(blocks).await;
                         });
                     }
                 }
@@ -703,7 +702,6 @@ impl IntoResponse for AppError {
                     if let Some(notifier) = discord_notifier() {
                         let app_name =
                             std::env::var("APP_NAME").unwrap_or_else(|_| "Rust".to_string());
-
                         let embeds = serde_json::json!([
                             {
                                 "title": format!(":red_circle: Exception — {}", app_name),
@@ -723,9 +721,7 @@ impl IntoResponse for AppError {
                             }
                         ]);
                         let _ = tokio::spawn(async move {
-                            let _ = notifier
-                                .notify_discord("Error occurred", Some(embeds))
-                                .await;
+                            let _ = notifier.notify_discord_rich(embeds).await;
                         });
                     }
                 }
