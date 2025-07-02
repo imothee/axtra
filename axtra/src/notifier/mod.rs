@@ -11,6 +11,13 @@ pub struct Notifier {
 }
 
 #[cfg(feature = "notifier")]
+impl Default for Notifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "notifier")]
 impl Notifier {
     /// Create a new notifier with specific webhook URLs
     pub fn new() -> Self {

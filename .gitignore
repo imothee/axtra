@@ -6,7 +6,7 @@
 .DS_Store
 
 # rs-ts
-/bindings
+/axtra/bindings
 
 # Devbox
 .devbox

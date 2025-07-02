@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Optional: Set crate name explicitly
+CRATE_NAME=$(basename "$(pwd)")
+
+echo "🔍 Running clippy..."
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+echo "✅ Running tests..."
+cargo test --workspace --all-features
+
+echo "🔧 Building crate..."
+cargo build --workspace --release
+
+echo "📦 Dry-run publishing axtra_macros..."
+cargo publish -p axtra_macros --dry-run
+
+echo "📦 Dry-run publishing axtra..."
+cargo publish -p axtra --dry-run
+
+read -p "🚀 Ready to publish '$CRATE_NAME'? [y/N]: " confirm
+if [[ "$confirm" =~ ^[Yy]$ ]]; then
+  echo "🚀 Publishing axtra_macros first..."
+  cargo publish -p axtra_macros
+  
+  echo "⏳ Waiting for crates.io to update..."
+  sleep 30
+  
+  echo "🚀 Publishing axtra..."
+  cargo publish -p axtra
+  
+  echo "✅ All crates published successfully!"
+else
+  echo "🛑 Publish canceled."
+fi

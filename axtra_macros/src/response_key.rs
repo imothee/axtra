@@ -19,10 +19,8 @@ pub fn response_key_derive(input: TokenStream) -> TokenStream {
             match &attr.meta {
                 Meta::List(meta_list) => {
                     // #[response_key("custom_name")]
-                    if let Ok(lit) = syn::parse2::<Lit>(meta_list.tokens.clone()) {
-                        if let Lit::Str(lit_str) = lit {
-                            return lit_str.value();
-                        }
+                    if let Ok(Lit::Str(lit_str)) = syn::parse2::<Lit>(meta_list.tokens.clone()) {
+                        return lit_str.value();
                     }
                     // Fallback to auto-derived name if parsing fails
                     default_key.clone()

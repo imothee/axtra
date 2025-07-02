@@ -48,7 +48,7 @@ fn slack_notifier() -> Option<&'static Notifier> {
         .get_or_init(|| {
             std::env::var("SLACK_ERROR_WEBHOOK_URL")
                 .ok()
-                .map(|url| Notifier::with_slack(url))
+                .map(Notifier::with_slack)
         })
         .as_ref()
 }
@@ -62,7 +62,7 @@ fn discord_notifier() -> Option<&'static Notifier> {
         .get_or_init(|| {
             std::env::var("DISCORD_ERROR_WEBHOOK_URL")
                 .ok()
-                .map(|url| Notifier::with_discord(url))
+                .map(Notifier::with_discord)
         })
         .as_ref()
 }
@@ -686,7 +686,7 @@ impl IntoResponse for AppError {
                                 ]
                             }
                         ]);
-                        let _ = tokio::spawn(async move {
+                        tokio::spawn(async move {
                             let _ = notifier.notify_slack_rich(blocks).await;
                         });
                     }
@@ -720,7 +720,7 @@ impl IntoResponse for AppError {
                                 ]
                             }
                         ]);
-                        let _ = tokio::spawn(async move {
+                        tokio::spawn(async move {
                             let _ = notifier.notify_discord_rich(embeds).await;
                         });
                     }
