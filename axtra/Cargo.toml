@@ -1,6 +1,6 @@
 [package]
 name = "axtra"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Axtra is a Rust library for building web applications with Axum and Astro providing utilities for error handling, notifications, and more."
 repository = "https://github.com/imothee/axtra"
@@ -26,7 +26,7 @@ tower-http = { version = "0.6.2", features = [
 tracing = "0.1.41"
 ts-rs = "11.0.0"
 validator = "0.20.0"
-axtra_macros = { version = "0.1.1", path = "../axtra_macros" }
+axtra_macros = { version = "0.2.0", path = "../axtra_macros" }
 
 [features]
 notifier = ["dep:reqwest", "dep:serde_json"]
@@ -45,5 +45,5 @@ version = "1.0.117"
 optional = true
 
 [dependencies.sentry]
-version = "0.39.0"
+version = "0.41.0"
 optional = true

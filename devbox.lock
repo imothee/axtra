@@ -4,6 +4,54 @@
     "github:NixOS/nixpkgs/nixpkgs-unstable": {
       "resolved": "github:NixOS/nixpkgs/b0b4b5f8f621bfe213b8b21694bab52ecfcbf30b?lastModified=1744032190&narHash=sha256-KSlfrncSkcu1YE%2BuuJ%2FPTURsSlThoGkRqiGDVdbiE%2Fk%3D"
     },
+    "husky@latest": {
+      "last_modified": "2025-06-20T02:24:11Z",
+      "resolved": "github:NixOS/nixpkgs/076e8c6678d8c54204abcb4b1b14c366835a58bb#husky",
+      "source": "devbox-search",
+      "version": "8.0.3",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/c24x0i2c9y6jmbcrakc1r3zmbk803x3w-husky-8.0.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/c24x0i2c9y6jmbcrakc1r3zmbk803x3w-husky-8.0.3"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zgfj7lp9b6gh5zsri6rhzijk8qa51m9y-husky-8.0.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/zgfj7lp9b6gh5zsri6rhzijk8qa51m9y-husky-8.0.3"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/2vqxlf17hwy7yp3cxq2kyr8pfdgvdcrs-husky-8.0.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/2vqxlf17hwy7yp3cxq2kyr8pfdgvdcrs-husky-8.0.3"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/gmgzq08hgz54nmpnpvwz5jqza2xacrym-husky-8.0.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/gmgzq08hgz54nmpnpvwz5jqza2xacrym-husky-8.0.3"
+        }
+      }
+    },
     "libiconv@latest": {
       "last_modified": "2025-03-23T05:31:05Z",
       "resolved": "github:NixOS/nixpkgs/dd613136ee91f67e5dba3f3f41ac99ae89c5406b#libiconv",

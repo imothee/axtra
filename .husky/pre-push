@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+
+echo "🔍 Running pre-push checks..."
+
+# Backend checks
+echo "🦀 Running Rust checks..."
+
+# Cargo clippy
+echo "🔧 Running clippy..."
+cargo clippy --all-targets --all-features -- -D warnings
+if [ $? -ne 0 ]; then
+  echo "❌ Clippy failed"
+  exit 1
+fi
+
+# Cargo test
+echo "🧪 Running tests..."
+cargo test
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed"
+  exit 1
+fi
+
+# Check for uncommitted changes
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "❌ You have uncommitted changes. Please commit or stash them before pushing."
+  exit 1
+fi
+
+echo "✅ All pre-push checks passed!"

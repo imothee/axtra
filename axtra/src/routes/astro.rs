@@ -11,11 +11,12 @@ use tower_http::{
     services::{ServeDir, ServeFile},
 };
 
-pub fn serve_spa<S>(path: &str) -> Router<S>
+pub fn serve_spa<S>(path: impl AsRef<str>) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    let index_file_path = format!("./dist/{}/index.html", path);
+    let path = path.as_ref();
+    let index_file_path = format!("./dist/{path}/index.html");
 
     Router::new()
         // Serve `/path`

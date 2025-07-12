@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.14.0/.schema/devbox.schema.json",
-	"packages": ["rustup@latest", "libiconv@latest", "sqlx-cli@latest"],
+	"packages": ["rustup@latest", "libiconv@latest", "sqlx-cli@latest", "husky@latest"],
 	"shell": {
 		"init_hook": [
 			"projectDir=$(pwd)",
