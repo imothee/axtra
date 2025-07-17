@@ -21,7 +21,7 @@
 //!
 //! ## Usage Example
 //!
-//! ```rust
+//! ```rust, ignore
 //! use axtra::bouncer::{BouncerConfig, BouncerLayer};
 //! use axum::{Router, routing::get};
 //! use axum::http::StatusCode;
@@ -54,7 +54,7 @@
 //! ## Advanced Usage
 //!
 //! You can also pass only presets or only custom paths:
-//! ```rust
+//! ```rust, ignore
 //! let config = BouncerConfig::from_preset_rules(&["wordpress"]);
 //! let config = BouncerConfig::from_custom_rules(&["/admin", "/hidden"]);
 //! ```

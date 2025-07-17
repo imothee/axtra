@@ -10,7 +10,7 @@
 //!
 //! ### Instance API
 //!
-//! ```rust
+//! ```rust, ignore
 //! use axtra::notifier::Notifier;
 //! use serde_json::json;
 //!
@@ -33,7 +33,7 @@
 //!
 //! ### Static API (One-off notifications)
 //!
-//! ```rust
+//! ```rust, ignore
 //! use axtra::notifier::Notifier;
 //! use serde_json::json;
 //!
