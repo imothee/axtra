@@ -59,7 +59,6 @@ where
             let (mut parts, body) = req.into_parts();
             let uri: OriginalUri = parts.extract().await?;
 
-            tracing::info!("Request path: {}", uri.path());
             let req = Request::from_parts(parts, body);
             match fallback_service.oneshot(req).await {
                 Ok(mut res) => match res.status() {
@@ -83,7 +82,7 @@ where
                     _ => Ok(res),
                 },
                 Err(e) => {
-                    tracing::error!("fallback_service error: {}", e);
+                    tracing::error!("Static file serve error: {e}");
                     Err(e)
                 }
             }

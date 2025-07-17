@@ -1,3 +1,71 @@
+//! # Notifier
+//!
+//! Send error alerts and notifications to Slack and Discord webhooks.
+//!
+//! ## Feature Flag
+//!
+//! This module is only available when the `notifier` feature is enabled.
+//!
+//! ## Usage
+//!
+//! ### Instance API
+//!
+//! ```rust
+//! use axtra::notifier::Notifier;
+//! use serde_json::json;
+//!
+//! // Create a notifier for Slack
+//! let slack = Notifier::with_slack("https://hooks.slack.com/services/XXX");
+//! slack.notify_slack("Hello from Axtra!").await?;
+//!
+//! // Send rich Slack blocks
+//! let blocks = json!([{ "type": "section", "text": { "type": "plain_text", "text": "Critical error!" } }]);
+//! slack.notify_slack_rich(blocks).await?;
+//!
+//! // Create a notifier for Discord
+//! let discord = Notifier::with_discord("https://discord.com/api/webhooks/XXX");
+//! discord.notify_discord("Hello from Axtra!").await?;
+//!
+//! // Send rich Discord embeds
+//! let embeds = json!([{ "title": "Error", "description": "Something went wrong!" }]);
+//! discord.notify_discord_rich(embeds).await?;
+//! ```
+//!
+//! ### Static API (One-off notifications)
+//!
+//! ```rust
+//! use axtra::notifier::Notifier;
+//! use serde_json::json;
+//!
+//! // Send a one-off Slack message
+//! Notifier::slack("https://hooks.slack.com/services/XXX", "Hello!").await?;
+//!
+//! // Send a one-off rich Slack message
+//! let blocks = json!([{ "type": "section", "text": { "type": "plain_text", "text": "Critical error occurred!" } }]);
+//! Notifier::slack_rich("https://hooks.slack.com/services/XXX", blocks).await?;
+//!
+//! // Send a one-off Discord message
+//! Notifier::discord("https://discord.com/api/webhooks/XXX", "Hello!").await?;
+//!
+//! // Send a one-off rich Discord message
+//! let embeds = json!([{ "title": "Error", "description": "Something went wrong!", "color": 16711680 }]);
+//! Notifier::discord_rich("https://discord.com/api/webhooks/XXX", embeds).await?;
+//! ```
+//!
+//! ## Environment Variables
+//!
+//! You can configure webhook URLs via environment variables for automatic integration:
+//!
+//! ```text
+//! SLACK_ERROR_WEBHOOK_URL=your_slack_webhook_url
+//! DISCORD_ERROR_WEBHOOK_URL=your_discord_webhook_url
+//! ```
+//!
+//! ## See Also
+//! - [README](https://github.com/imothee/axtra)
+//! - [docs.rs/axtra](https://docs.rs/axtra)
+//!
+
 #[cfg(feature = "notifier")]
 use reqwest::Client;
 #[cfg(feature = "notifier")]

@@ -1,0 +1,3 @@
+{
+  "rust-analyzer.cargo.features": ["bouncer", "notify-error-slack", "notify-error-discord"],
+}

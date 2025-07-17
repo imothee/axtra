@@ -85,6 +85,10 @@ impl From<ValidationErrors> for SerializableValidationErrors {
 
 // --- Core AppError ---
 
+/// Unified error type for Axtra APIs.
+///
+/// Use [`app_error!`] macro to construct errors ergonomically.
+/// See crate-level docs for usage patterns.
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("Bad Request: {detail}")]

@@ -13,12 +13,6 @@ cargo test --workspace --all-features
 echo "🔧 Building crate..."
 cargo build --workspace --release
 
-echo "📦 Dry-run publishing axtra_macros..."
-cargo publish -p axtra_macros --dry-run
-
-echo "📦 Dry-run publishing axtra..."
-cargo publish -p axtra --dry-run
-
 read -p "🚀 Ready to publish '$CRATE_NAME'? [y/N]: " confirm
 if [[ "$confirm" =~ ^[Yy]$ ]]; then
   echo "🚀 Publishing axtra_macros first..."

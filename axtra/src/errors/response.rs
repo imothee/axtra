@@ -5,7 +5,6 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use std::{fs, path::Path};
-use tracing::{error, info, warn};
 
 use crate::errors::{AppError, ErrorCode, ErrorFormat, ErrorResponse};
 
@@ -165,13 +164,13 @@ impl IntoResponse for AppError {
         // Log the error
         match error_code {
             ErrorCode::Authentication | ErrorCode::Authorization => {
-                info!("{formatted_message}");
+                tracing::info!("{formatted_message}");
             }
             ErrorCode::BadRequest | ErrorCode::NotFound | ErrorCode::Validation => {
-                warn!("{formatted_message}");
+                tracing::warn!("{formatted_message}");
             }
             ErrorCode::Database | ErrorCode::Exception => {
-                error!("{formatted_message}");
+                tracing::error!("{formatted_message}");
                 notify_critical_error!(self);
             }
         }
