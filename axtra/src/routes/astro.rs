@@ -1,10 +1,11 @@
 use axum::{
     RequestPartsExt, Router,
+    body::Body,
     extract::{OriginalUri, Request},
     response::IntoResponse,
     routing::get,
 };
-use http::StatusCode;
+use http::{StatusCode, header};
 use tower::ServiceExt;
 use tower_http::{
     compression::CompressionLayer,
@@ -18,29 +19,32 @@ where
     let path = path.as_ref();
     let index_file_path = format!("./dist/{path}/index.html");
 
+    let serve_index = {
+        let index_file_path = index_file_path.clone();
+        move |req: Request<Body>| {
+            let index_file_path = index_file_path.clone();
+            async move {
+                let serve_file = ServeFile::new(index_file_path.clone());
+                let mut res = serve_file.oneshot(req).await.into_response();
+
+                // Force no-cache for index.html
+                res.headers_mut().insert(
+                    header::CACHE_CONTROL,
+                    "no-cache, no-store, must-revalidate".parse().unwrap(),
+                );
+                res.headers_mut()
+                    .insert(header::PRAGMA, "no-cache".parse().unwrap());
+                res.headers_mut()
+                    .insert(header::EXPIRES, "0".parse().unwrap());
+
+                res
+            }
+        }
+    };
+
     Router::new()
-        // Serve `/path`
-        .route(
-            &format!("/{path}"),
-            get({
-                let index_file_path = index_file_path.clone();
-                move |req: Request<axum::body::Body>| async move {
-                    let serve_file = ServeFile::new(index_file_path.clone());
-                    serve_file.oneshot(req).await.into_response()
-                }
-            }),
-        )
-        // Serve `/path/{*route}`
-        .route(
-            &format!("/{path}/{{*route}}"),
-            get({
-                let index_file_path = index_file_path.clone();
-                move |req: Request<axum::body::Body>| async move {
-                    let serve_file = ServeFile::new(index_file_path.clone());
-                    serve_file.oneshot(req).await.into_response()
-                }
-            }),
-        )
+        .route(&format!("/{path}"), get(serve_index.clone()))
+        .route(&format!("/{path}/{{*route}}"), get(serve_index))
 }
 
 pub fn serve_static_files<S>() -> Router<S>
@@ -65,14 +69,14 @@ where
                     StatusCode::OK => {
                         if uri.path().contains("/_static/") {
                             res.headers_mut().insert(
-                                "Cache-Control",
+                                header::CACHE_CONTROL,
                                 // One year cache
                                 "public, max-age=31536000".parse().unwrap(),
                             );
                         }
                         if uri.path().contains("/_astro/") {
                             res.headers_mut().insert(
-                                "Cache-Control",
+                                header::CACHE_CONTROL,
                                 // One month cache
                                 "public, max-age=2628000".parse().unwrap(),
                             );

@@ -224,7 +224,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "axtra"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "Inflector",
  "axtra_macros",
@@ -248,7 +248,7 @@ dependencies = [
 
 [[package]]
 name = "axtra_macros"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "Inflector",
  "proc-macro2",
