@@ -20,6 +20,7 @@ pub struct BouncerConfig {
     pub banned_status: http::StatusCode,
     pub blocked_status: http::StatusCode,
     pub log_level: tracing::Level,
+    pub trust_proxy: bool,
 }
 
 impl BouncerConfig {
@@ -31,6 +32,7 @@ impl BouncerConfig {
             banned_status: http::StatusCode::FORBIDDEN,
             blocked_status: http::StatusCode::FORBIDDEN,
             log_level: tracing::Level::DEBUG,
+            trust_proxy: false,
         }
     }
 
@@ -59,6 +61,11 @@ impl BouncerConfig {
 
     pub fn log_level(mut self, level: tracing::Level) -> Self {
         self.log_level = level;
+        self
+    }
+
+    pub fn trust_proxy(mut self, trust: bool) -> Self {
+        self.trust_proxy = trust;
         self
     }
 }
@@ -126,18 +133,7 @@ where
         let config = self.config.clone();
         let banlist = self.banlist.clone();
 
-        let ip = req
-            .headers()
-            .get("x-real-ip")
-            .and_then(|h| h.to_str().ok())
-            .and_then(|s| s.parse().ok())
-            .or_else(|| req.extensions().get::<IpAddr>().cloned())
-            .or_else(|| {
-                req.extensions()
-                    .get::<axum::extract::ConnectInfo<SocketAddr>>()
-                    .map(|info| info.0.ip())
-            });
-
+        let ip = extract_ip(&req, config.trust_proxy);
         let path = req.uri().path().to_owned();
 
         let clone = self.inner.clone();
@@ -209,4 +205,45 @@ fn log_event(
             tracing::trace!(ip = %ip, path = %path, banned, blocked, "{msg}")
         }
     }
+}
+
+// Extract the real client IP
+// Trust proxy must be set to use proxy headers as they can be spoofed
+fn extract_ip<B>(req: &Request<B>, trust_proxy: bool) -> Option<IpAddr> {
+    // Check proxy headers if configured to trust them, otherwise skip to direct connection IP
+    if trust_proxy {
+        // 1. Cloudflare
+        if let Some(ip) = req
+            .headers()
+            .get("cf-connecting-ip")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.parse().ok())
+        {
+            return Some(ip);
+        }
+        // 2. X-Forwarded-For (first in list)
+        if let Some(ip) = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .and_then(|s| s.trim().parse().ok())
+        {
+            return Some(ip);
+        }
+        // 3. X-Real-IP
+        if let Some(ip) = req
+            .headers()
+            .get("x-real-ip")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.parse().ok())
+        {
+            return Some(ip);
+        }
+    }
+
+    // Fallback to direct connection IP if available
+    req.extensions()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
+        .map(|info| info.0.ip())
 }

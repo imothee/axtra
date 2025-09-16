@@ -504,6 +504,30 @@ let app = Router::new()
     .layer(layer);
 ```
 
+### Extracting the IP Address
+To ensure that we have access to the clients IP Address you must start axum with, if you do not IP address will always be None and bouncer will not work.
+
+```rust
+axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+```
+
+instead of the usual
+
+```rust
+axum::serve(listener, app.into_make_service())
+```
+
+
+### Trusted Proxy
+Since proxy headers can be spoofed you must opt-in to allow proxy headers for IP addresses by specifically setting trust_proxy to true.
+
+If trust_proxy is true we will look for in descending order
+- CF-conecting-ip (Cloudflare)
+- X-Forwarded-For
+- X-Real-IP
+
+If no proxy headers are set or trust_proxy is false we will fallback to the connection IP address.
+
 ### Presets
 
 Available presets for common hacker/scanner paths:
