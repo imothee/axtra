@@ -1,6 +1,6 @@
 [package]
 name = "axtra_macros"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 description = "Derive macros for Axtra"
 repository = "https://github.com/imothee/axtra"

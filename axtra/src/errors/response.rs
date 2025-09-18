@@ -28,7 +28,7 @@ macro_rules! notify_critical_error {
 
 impl AppError {
     /// Generates a formatted error message for logging and notifications.
-    fn formatted_message(&self) -> String {
+    pub fn formatted_message(&self) -> String {
         let location = self.location();
         let error_code = self.code();
         let message = self.log_message();

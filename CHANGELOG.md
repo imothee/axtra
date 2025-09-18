@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.4
+
+- Makes formatted_message public so app_errors can be manually logged 
+
+## 0.2.3
+
+- Adds trust_proxy to bouncer to put behind a trusted proxy for IP resolution
+
+## 0.2.2
+
+- Fixes SPA possible caching of index.html
+- Bouncer fixes for IP resolution
+
 ## 0.2.1
 
 - Added Bouncer module

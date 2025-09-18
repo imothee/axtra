@@ -1,6 +1,6 @@
 [package]
 name = "axtra"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 description = "Axtra is a Rust library for building web applications with Axum and Astro providing utilities for error handling, notifications, and more."
 repository = "https://github.com/imothee/axtra"
